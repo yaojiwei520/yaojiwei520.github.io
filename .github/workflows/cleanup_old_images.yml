@@ -1,0 +1,48 @@
+name: Cleanup Old Images
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # 每周日凌晨3点 (UTC时间)
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 需要写入仓库的权限
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # 获取完整历史以执行git操作
+
+      - name: Find and Delete Old Images
+        id: cleanup_step
+        run: |
+          # 查找并删除超过 30 天的图片
+          # 注意：file -mtime +N 表示修改时间超过 N*24 小时
+          # 确保 images/ 目录存在，避免错误
+          if [ -d "images/" ]; then
+            find images/ -type f -mtime +30 -delete
+            echo "Finished finding and deleting old images."
+          else
+            echo "images/ directory not found. Skipping cleanup."
+          fi
+
+          # 检查是否有实际删除的文件，然后才进行提交
+          git add images/
+          if git diff --cached --exit-code --quiet; then
+            echo "No changes found after cleanup, skipping commit and push."
+            echo "no_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "Changes detected, committing and pushing."
+            echo "no_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and Push Changes
+        if: steps.cleanup_step.outputs.no_changes == 'false'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git commit -m "Cleanup old images, triggered by schedule [skip ci]"
+          git push
