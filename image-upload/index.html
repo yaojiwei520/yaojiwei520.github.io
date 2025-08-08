@@ -181,7 +181,8 @@
         }
 
         function showResult(url, markdown) {
-            // 在这里添加代理前缀，url现在是后端返回的GitHub Blob链接
+            // 在这里添加代理前缀，url现在预期是后端返回的GitHub Blob链接
+            // 例如：url = "https://github.com/yaojiwei520/yaojiwei520.github.io/blob/main/images/1754684288187_32b8s5.jpg"
             const PROXY_PREFIX = 'https://gh.catmak.name/'; 
             const proxiedUrl = PROXY_PREFIX + url; // 将后端返回的GitHub Blob URL拼接上代理前缀
             const proxiedMarkdown = `![image](${proxiedUrl})`; // 更新Markdown代码
@@ -315,7 +316,8 @@
                         );
 
                         const { url, markdown } = response.data;
-                        showResult(url, markdown); // 调用showResult时，这里的url是后端返回的GitHub Blob URL
+                        // 注意：这里的url和markdown是后端返回的GitHub Blob URL和Markdown
+                        showResult(url, markdown); 
                         success = true; // Mark as successful
                         
                     } catch (error) {
