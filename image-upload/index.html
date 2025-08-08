@@ -181,11 +181,16 @@
         }
 
         function showResult(url, markdown) {
+            // 在这里添加代理前缀，url现在是后端返回的GitHub Blob链接
+            const PROXY_PREFIX = 'https://gh.catmak.name/'; 
+            const proxiedUrl = PROXY_PREFIX + url; // 将后端返回的GitHub Blob URL拼接上代理前缀
+            const proxiedMarkdown = `![image](${proxiedUrl})`; // 更新Markdown代码
+
             uploadProgress.style.display = 'none';
             previewCard.style.display = 'none';
             resultCard.style.display = 'block';
-            document.getElementById('imageUrl').value = url;
-            document.getElementById('markdownCode').value = markdown;
+            document.getElementById('imageUrl').value = proxiedUrl; // 显示代理后的URL
+            document.getElementById('markdownCode').value = proxiedMarkdown; // 显示代理后的Markdown
             progressBar.classList.add('bg-success'); // 确保成功状态
             progressBar.style.width = '100%';
             progressBar.classList.remove('progress-bar-animated'); // Stop animation
@@ -240,7 +245,6 @@
             if (uploadInProgress) return; // Prevent new selection during upload
             
             // 验证文件类型
-            // 注意：这里包含了webp，但很多GitHub Pages的图片处理服务可能不默认支持，建议在后端处理
             const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
             if (!validTypes.includes(file.type)) {
                 alert('仅支持 JPG/PNG/GIF/WEBP 格式的图片');
@@ -290,7 +294,6 @@
                 let success = false;
 
                 // !!! 将此URL替换为您部署的Vercel/Netlify后端API的实际URL !!!
-                // 例如: 'https://github-image-uploader-backend-xxxx.u.vercel.app/api/upload'
                 const UPLOAD_API_URL = 'https://github-image-uploader-backend.vercel.app/api/upload'; 
 
                 while (retries < MAX_RETRIES && !success) {
@@ -312,7 +315,7 @@
                         );
 
                         const { url, markdown } = response.data;
-                        showResult(url, markdown);
+                        showResult(url, markdown); // 调用showResult时，这里的url是后端返回的GitHub Blob URL
                         success = true; // Mark as successful
                         
                     } catch (error) {
