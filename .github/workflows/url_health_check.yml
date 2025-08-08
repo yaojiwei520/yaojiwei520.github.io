@@ -24,7 +24,7 @@ jobs:
       - name: Check Image CDN Access
         run: |
           # 请替换为仓库中一个实际存在的图片文件名，例如您上传的第一张图片
-          TEST_IMAGE_URL="https://yaojiwei520.github.io/images/placeholder.txt" # <-- **替换为您的GitHub用户名和实际的测试图片路径**
+          TEST_IMAGE_URL="https://yaojiwei520.github.io/images/34.jpg" # <-- **替换为您的GitHub用户名和实际的测试图片路径**
           echo "Checking image CDN URL: $TEST_IMAGE_URL"
           STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$TEST_IMAGE_URL")
           if [ "$STATUS_CODE" -ne 200 ]; then
