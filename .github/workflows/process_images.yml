@@ -1,0 +1,122 @@
+name: Process Uploaded Images (from Issues/PRs)
+
+on:
+  issues:
+    types: [opened, edited]
+  pull_request_target: # pull_request_target for potentially untrusted PRs, uses base repo permissions
+    types: [opened, synchronize] # 'synchronize' for new commits to existing PRs
+
+jobs:
+  process_image:
+    if: |
+      (github.event_name == 'issues' && contains(github.event.issue.body, 'data:image') && !contains(github.event.issue.body, '[skip ci]')) || 
+      (github.event_name == 'pull_request_target' && contains(github.event.pull_request.body, 'data:image') && !contains(github.event.pull_request.body, '[skip ci]'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 写入仓库权限
+      issues: write   # 评论和关闭issue权限
+      pull-requests: write # 评论PR权限
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # ensures full history for git operations, though 1 might be enough for just adding files
+
+      - name: Extract image data and save
+        id: extract
+        run: |
+          # 从Issue/PR正文提取Base64图片数据
+          BODY_CONTENT="${{ github.event.issue.body || github.event.pull_request.body }}"
+          
+          # 提取Base64数据部分和文件类型，考虑到可能出现多个图片
+          # 实际应用中可能需要循环处理所有匹配到的图片
+          IMAGE_URI=$(echo "$BODY_CONTENT" | grep -oP 'data:image/[^;]+;base64,[^)]+')
+          
+          if [ -z "$IMAGE_URI" ]; then
+            echo "::warning::No Base64 image data found in body. Skipping image processing."
+            exit 0 # If no image, just exit gracefully
+          fi
+          
+          # 取第一张匹配到的图片为例。如果需要处理多张，这里需要循环
+          BASE64_DATA=$(echo "$IMAGE_URI" | head -n 1 | sed -e 's/data:image\/[^;]\+;base64,//')
+          FILE_EXT=$(echo "$IMAGE_URI" | head -n 1 | grep -oP '(?<=data:image/)[^;]+')
+          
+          # 简单容错处理文件扩展名，默认为png
+          if [ -z "$FILE_EXT" ]; then
+            FILE_EXT="png"
+          elif [ "$FILE_EXT" == "jpeg" ]; then
+            FILE_EXT="jpg"
+          fi
+          
+          # 生成唯一文件名，与Serverless后端命名方式类似，保持一致性
+          FILENAME="images/issue_$(date +%s)_${{ github.run_id }}.${FILE_EXT}"
+          
+          echo "Decoding and saving image to $FILENAME"
+          echo "$BASE64_DATA" | base64 --decode > "$FILENAME"
+          
+          # 验证图片有效性 (需要安装file命令)
+          if ! file "$FILENAME" | grep -q "image data"; then
+            echo "::error::Invalid or corrupt image file detected after decoding."
+            echo "Please ensure the Base64 data is correct."
+            rm "$FILENAME" # Clean up invalid file
+            exit 1 # Fail the job
+          fi
+          
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+          echo "decoded_image_found=true" >> $GITHUB_OUTPUT # Flag to indicate image was processed
+        
+      - name: Commit changes
+        if: steps.extract.outputs.decoded_image_found == 'true' # Only commit if image was found and decoded
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add images/
+          git commit -m "Add uploaded image from ${{ github.event_name }} [skip ci]" || echo "No changes to commit"
+          git push
+
+      - name: Comment result and Close Issue/PR
+        if: steps.extract.outputs.decoded_image_found == 'true' # Only comment if image was processed
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const filename = process.env.FILENAME_OUTPUT; // Use environment variable from output
+            const yaojiwei520.github.io = `https://your-username.github.io/${filename}`; // <-- **替换为您的GitHub用户名**
+            const markdownCode = `![image](${yaojiwei520.github.io})`;
+
+            let commentBody = `✅ 图片处理完成！\n\n**原始Issue/PR中的图片将被替换为CDN链接。**\n\n**直接链接**: ${yaojiwei520.github.io}\n\n**Markdown**: \`${markdownCode}\``;
+            let issueOrPrNumber;
+
+            if (context.eventName.includes('issue')) {
+                issueOrPrNumber = context.issue.number;
+                await github.rest.issues.createComment({
+                    issue_number: issueOrPrNumber,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body: commentBody
+                });
+                // Update original issue/PR body to replace Base64 with CDN link (Optional but good practice)
+                const originalBody = `${{ github.event.issue.body }}`;
+                // Use a more robust regex to ensure only data:image URLs are replaced
+                const updatedBody = originalBody.replace(/data:image\/[^;]+;base64,([a-zA-Z0-9+/=\s]+)/g, yaojiwei520.github.io);
+                
+                await github.rest.issues.update({
+                  issue_number: issueOrPrNumber,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: updatedBody,
+                  state: 'closed' // Close issue automatically
+                });
+                console.log(`Issue #${issueOrPrNumber} closed and body updated.`);
+            } else { // pull_request_target
+                issueOrPrNumber = context.pull_request.number;
+                await github.rest.issues.createComment({ // Using issues.createComment for PR comment
+                    issue_number: issueOrPrNumber,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body: `✅ 图片已添加到仓库: ${yaojiwei520.github.io}\n\n注意：如果您在PR正文中嵌入了Base64图片，请考虑将其替换为上述CDN链接。`
+                });
+                // For PRs, we generally don't modify the PR body directly to avoid conflicts.
+            }
+        env: # Pass output to script via environment variable
+          FILENAME_OUTPUT: ${{ steps.extract.outputs.filename }}
