@@ -181,16 +181,12 @@
         }
 
         function showResult(url, markdown) {
-            // 在这里添加代理前缀
-            const PROXY_PREFIX = 'https://gh.catmak.name/'; // 您想要的代理前缀
-            const proxiedUrl = PROXY_PREFIX + url; // 将原始URL拼接上代理前缀
-            const proxiedMarkdown = `![image](${proxiedUrl})`; // 更新Markdown代码
-
+            // 这里不再添加代理前缀，直接使用从后端返回的原始url和markdown
             uploadProgress.style.display = 'none';
             previewCard.style.display = 'none';
             resultCard.style.display = 'block';
-            document.getElementById('imageUrl').value = proxiedUrl; // 显示代理后的URL
-            document.getElementById('markdownCode').value = proxiedMarkdown; // 显示代理后的Markdown
+            document.getElementById('imageUrl').value = url; // 显示原始URL
+            document.getElementById('markdownCode').value = markdown; // 显示原始Markdown
             progressBar.classList.add('bg-success'); // 确保成功状态
             progressBar.style.width = '100%';
             progressBar.classList.remove('progress-bar-animated'); // Stop animation
@@ -317,10 +313,10 @@
                         );
 
                         const { url, markdown } = response.data;
-                        showResult(url, markdown); // 调用showResult时，这里的url是原始GitHub Pages URL
+                        showResult(url, markdown); // 直接将后端返回的url和markdown传递给showResult
                         success = true; // Mark as successful
                         
-                    } catch (error) {
+                    } <span style="background-color: #ffff00;">catch (error) {</span>
                         if (axios.isCancel(error)) {
                             console.log('Upload cancelled by user.');
                             showError('上传已取消。');
