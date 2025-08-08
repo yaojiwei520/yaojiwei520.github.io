@@ -1,0 +1,45 @@
+name: GitHub Pages Health Check
+
+on:
+  schedule:
+    - cron: '0 * * * *' # 每小时运行一次
+
+jobs:
+  check_url:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Frontend Page Access
+        run: |
+          FRONTEND_URL="https://yaojiwei520.github.io/image-upload/"  # <-- **替换为您的GitHub用户名**
+          echo "Checking frontend URL: $FRONTEND_URL"
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL")
+          if [ "$STATUS_CODE" -ne 200 ]; then
+            echo "::error::Frontend URL returned status code $STATUS_CODE. Expected 200."
+            exit 1
+          else
+            echo "Frontend URL is accessible (Status 200)."
+          fi
+      
+      # 假设 images/ 目录下有一张已知存在的测试图片，或者您上传的第一张图片
+      - name: Check Image CDN Access
+        run: |
+          # 请替换为仓库中一个实际存在的图片文件名，例如您上传的第一张图片
+          TEST_IMAGE_URL="https://yaojiwei520.github.io/images/placeholder.txt" # <-- **替换为您的GitHub用户名和实际的测试图片路径**
+          echo "Checking image CDN URL: $TEST_IMAGE_URL"
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$TEST_IMAGE_URL")
+          if [ "$STATUS_CODE" -ne 200 ]; then
+            echo "::error::Image URL returned status code $STATUS_CODE. Expected 200."
+            exit 1
+          else
+            echo "Image URL is accessible (Status 200)."
+          fi
+      
+      # 如果您有其它关键的公共资源需要检查，可以在这里添加
+
+      - name: Send Notification on Failure (Optional)
+        if: failure()
+        # 这里可以添加发送通知的步骤，例如使用 Pushbullet, Slack, Discord webhook 等
+        # 示例 (需要配置 secrets):
+        # run: |
+        #   curl -X POST -H "Content-Type: application/json" --data '{"text":"GitHub Pages Health Check Failed in ${{ github.workflow }}!"}' "${{ secrets.SLACK_WEBHOOK_URL }}"
+        run: echo "Health check failed! Please check your GitHub Actions logs."
