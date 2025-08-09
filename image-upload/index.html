@@ -180,38 +180,44 @@
             cancelBtn.textContent = '取消选择'; // 预览时显示“取消选择”
         }
 
-        function showResult(url, markdown) {
-            // 在这里添加代理前缀，url现在预期是后端返回的GitHub Blob链接
-            // 例如：url = "https://github.com/yaojiwei520/yaojiwei520.github.io/blob/main/images/1754684288187_32b8s5.jpg"
+        // *** showResult 函数现在接收一个包含 blobUrl 和 cdnUrl 的对象 ***
+        function showResult(data) {
             const PROXY_PREFIX = 'https://gh.catmak.name/'; 
-            const proxiedUrl = PROXY_PREFIX + url; // 将后端返回的GitHub Blob URL拼接上代理前缀
-            const proxiedMarkdown = `![image](${proxiedUrl})`; // 更新Markdown代码
+            
+            // 从后端数据中解构出两种链接
+            // 安全检查：确保 data.blobUrl 和 data.cdnUrl 存在，如果不存在提供默认空字符串
+            const blobUrl = data.blobUrl || ''; 
+            const cdnUrl = data.cdnUrl || '';    
+
+            // 1. "图片链接" (Image URL) 字段：使用代理化的 Blob URL
+            const proxiedBlobUrl = PROXY_PREFIX + blobUrl; 
+            document.getElementById('imageUrl').value = proxiedBlobUrl; 
+
+            // 2. "Markdown代码" (Markdown Code) 字段：使用代理化的 CDN URL
+            const proxiedCdnUrl = PROXY_PREFIX + cdnUrl;
+            const proxiedMarkdown = `![image](${proxiedCdnUrl})`;
+            document.getElementById('markdownCode').value = proxiedMarkdown;
 
             uploadProgress.style.display = 'none';
             previewCard.style.display = 'none';
             resultCard.style.display = 'block';
-            document.getElementById('imageUrl').value = proxiedUrl; // 显示代理后的URL
-            document.getElementById('markdownCode').value = proxiedMarkdown; // 显示代理后的Markdown
-            progressBar.classList.add('bg-success'); // 确保成功状态
+            progressBar.classList.add('bg-success'); 
             progressBar.style.width = '100%';
-            progressBar.classList.remove('progress-bar-animated'); // Stop animation
+            progressBar.classList.remove('progress-bar-animated');
             uploadInProgress = false;
         }
 
         function showError(message) {
-            // Keep uploadProgress visible to show red bar
             uploadProgress.style.display = 'block'; 
             progressBar.classList.add('bg-danger');
             progressBar.style.width = '100%';
-            progressBar.classList.remove('progress-bar-animated'); // Stop animation
+            progressBar.classList.remove('progress-bar-animated');
             alert(`上传失败: ${message}`);
             uploadInProgress = false;
-            // You might choose to resetUI immediately or let user see the error bar then reset on next action
-            setTimeout(resetUI, 3000); // Reset UI after 3 seconds
+            setTimeout(resetUI, 3000);
         }
 
         // --- 文件处理 ---
-        // 拖放功能
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.style.borderColor = '#0d6efd';
@@ -227,13 +233,11 @@
             e.preventDefault();
             dropZone.style.borderColor = '#6c757d';
             dropZone.style.backgroundColor = '';
-
             if (e.dataTransfer.files.length) {
                 handleFileSelect(e.dataTransfer.files[0]);
             }
         });
 
-        // 点击上传
         dropZone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', () => {
             if (fileInput.files.length) {
@@ -241,34 +245,26 @@
             }
         });
 
-        // 处理文件选择
         function handleFileSelect(file) {
-            if (uploadInProgress) return; // Prevent new selection during upload
-            
-            // 验证文件类型
+            if (uploadInProgress) return;
             const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
             if (!validTypes.includes(file.type)) {
                 alert('仅支持 JPG/PNG/GIF/WEBP 格式的图片');
                 resetUI();
                 return;
             }
-
-            // 验证文件大小
-            const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB限制
+            const MAX_FILE_SIZE = 5 * 1024 * 1024;
             if (file.size > MAX_FILE_SIZE) {
                 alert(`图片大小不能超过 ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
                 resetUI();
                 return;
             }
-
             currentFile = file;
-            
-            // 显示预览
             const reader = new FileReader();
             reader.onload = (e) => {
                 previewImg.src = e.target.result;
                 previewImg.style.display = 'block';
-                showPreview(); // Update UI to preview state
+                showPreview();
             };
             reader.readAsDataURL(file);
         }
@@ -277,25 +273,23 @@
         async function startUpload() {
             if (!currentFile || uploadInProgress) return;
 
-            showUploadProgress(); // Update UI to uploading state
+            showUploadProgress(); 
             
-            // 创建AbortController用于取消请求
             abortController = new AbortController();
             const { signal } = abortController;
 
             const reader = new FileReader();
-            reader.readAsDataURL(currentFile); // Read file as Base64
+            reader.readAsDataURL(currentFile); 
 
             reader.onloadend = async () => {
-                const base64Image = reader.result.split(',')[1]; // Get only the Base64 part
+                const base64Image = reader.result.split(',')[1]; 
                 const fileType = currentFile.type;
 
                 const MAX_RETRIES = 3;
                 let retries = 0;
                 let success = false;
 
-                // !!! 将此URL替换为您部署的Vercel/Netlify后端API的实际URL !!!
-                const UPLOAD_API_URL = 'https://github-image-uploader-backend.vercel.app/api/upload'; 
+                const UPLOAD_API_URL = 'https://github-image-uploader-backend.vercel.app/api/upload'; // <<< 确认这个URL是否正确指向你的Vercel后端 >>>
 
                 while (retries < MAX_RETRIES && !success) {
                     try {
@@ -306,7 +300,7 @@
                                 type: fileType
                             },
                             {
-                                signal: signal, // Pass the AbortSignal
+                                signal: signal,
                                 onUploadProgress: (progressEvent) => {
                                     const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
                                     progressBar.style.width = `${percentCompleted}%`;
@@ -315,35 +309,33 @@
                             }
                         );
 
-                        const { url, markdown } = response.data;
-                        // 注意：这里的url和markdown是后端返回的GitHub Blob URL和Markdown
-                        showResult(url, markdown); 
-                        success = true; // Mark as successful
+                        // *** 关键修改：将整个 response.data 对象传递给 showResult ***
+                        showResult(response.data); 
+                        success = true;
                         
                     } catch (error) {
                         if (axios.isCancel(error)) {
                             console.log('Upload cancelled by user.');
                             showError('上传已取消。');
-                            break; // Exit loop if cancelled
+                            break; 
                         }
 
                         retries++;
                         console.error(`上传失败 (尝试 ${retries}/${MAX_RETRIES}):`, error.response ? error.response.data : error.message);
                         if (retries < MAX_RETRIES) {
-                            // Exponential backoff
-                            const delay = Math.pow(2, retries) * 1000 + Math.random() * 500; // 1s, 2s, 4s + jitter
-                            progressBar.classList.add('bg-danger'); // Show error state temporarily
-                            progressBar.classList.remove('progress-bar-animated'); // Stop animation for a moment
+                            const delay = Math.pow(2, retries) * 1000 + Math.random() * 500;
+                            progressBar.classList.add('bg-danger');
+                            progressBar.classList.remove('progress-bar-animated');
                             await new Promise(resolve => setTimeout(resolve, delay));
-                            progressBar.classList.remove('bg-danger'); // Reset for next retry
-                            progressBar.classList.add('progress-bar-animated'); // Restart animation
-                            progressBar.style.width = '0%'; // Reset progress bar
+                            progressBar.classList.remove('bg-danger'); 
+                            progressBar.classList.add('progress-bar-animated');
+                            progressBar.style.width = '0%';
                         } else {
                             showError(error.response?.data?.error || error.message || '未知错误');
                         }
                     }
                 }
-                uploadInProgress = false; // Ensure flag is reset
+                uploadInProgress = false;
             };
 
             reader.onerror = () => {
@@ -356,7 +348,7 @@
         function copyUrl() {
             const copyText = document.getElementById('imageUrl');
             copyText.select();
-            copyText.setSelectionRange(0, 99999); // For mobile devices
+            copyText.setSelectionRange(0, 99999);
             document.execCommand('copy');
             alert('链接已复制到剪贴板');
         }
@@ -364,7 +356,7 @@
         function copyMarkdown() {
             const copyText = document.getElementById('markdownCode');
             copyText.select();
-            copyText.setSelectionRange(0, 99999); // For mobile devices
+            copyText.setSelectionRange(0, 99999);
             document.execCommand('copy');
             alert('Markdown代码已复制');
         }
@@ -373,10 +365,8 @@
         confirmBtn.addEventListener('click', startUpload);
         cancelBtn.addEventListener('click', () => {
             if (uploadInProgress && abortController) {
-                // 如果正在上传中，取消Axios请求
                 abortController.abort();
             } else {
-                // 如果是预览状态，只是取消选择
                 resetUI();
             }
         });
