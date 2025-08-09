@@ -194,10 +194,8 @@
         let uploadInProgress = false;
         let mainAbortController = null; 
 
-        // !!! 将此URL替换为您部署的Vercel后端API的实际URL !!!
-        // 后端文件现在是 api/v1.js，所以URL是 /api/v1
+        // 后端文件现在是 api/v1.mjs，所以URL是 /api/v1
         const UPLOAD_API_URL = 'https://github-image-uploader-backend.vercel.app/api/v1'; 
-        // const PROXY_PREFIX = 'https://gh.catmak.name/'; // <-- 前端不再需要这个，后端会添加
 
         // --- UI 状态管理函数 ---
         function resetUI() {
@@ -255,10 +253,9 @@
                 const originalFileName = result.originalFileName; 
                 // 后端现在直接返回代理后的 URL
                 const cdnUrlProxied = result.url; // API规范中的 'url' 字段 (已包含代理)
-                const deleteUrl = result.delete_url; 
+                // const deleteUrl = result.delete_url; // <-- 移除 deleteUrl 变量
                 const blobUrlProxied = result.blobUrlForInternalUse; // 我们自定义返回的 Blob 链接 (已包含代理)
 
-                // *** 核心修改：前端直接使用后端返回的已代理的 URL ***
                 // 1. "图片链接" (Image URL) 字段：直接使用后端返回的代理后的 Blob URL
                 // 2. "Markdown代码" (Markdown Code) 字段：直接使用后端返回的代理后的 CDN URL
                 const markdownCode = `![image](${cdnUrlProxied})`; 
@@ -275,7 +272,8 @@
                         <input type="text" class="form-control" value="${markdownCode}" readonly>
                         <button class="btn btn-outline-secondary copy-btn" data-copy-target="${markdownCode}">复制</button>
                     </div>
-                    ${deleteUrl ? `<small class="text-muted">删除链接 (未实现):</small><br><div class="input-group input-group-sm"><input type="text" class="form-control" value="${deleteUrl}" readonly><button class="btn btn-outline-secondary copy-btn" data-copy-target="${deleteUrl}">复制</button></div>` : ''}
+                    <!-- ${/* deleteUrl ? `<small class="text-muted">删除链接 (未实现):</small><br><div class="input-group input-group-sm"><input type="text" class="form-control" value="${deleteUrl}" readonly><button class="btn btn-outline-secondary copy-btn" data-copy-target="${deleteUrl}">复制</button></div>` : '' */''} -->
+                    <!-- 👆 移除或注释掉显示删除链接的代码行 -->
                 `;
                 resultLinksGroup.appendChild(li);
             });
