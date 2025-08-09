@@ -21,16 +21,57 @@
             background-color: #e9f0ff;
             box-shadow: 0 4px 15px rgba(0, 100, 255, 0.1);
         }
-        #previewImg {
-            max-height: 300px;
-            object-fit: contain; /* Ensure image fits without stretching */
-            width: 100%; /* Make image responsive */
-            display: none;
-            border-radius: 8px;
-            margin-top: 15px;
-            border: 1px solid #ddd;
-            background-color: #eee;
+        /* 批量预览区域样式 */
+        #previewContainer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
         }
+        .image-preview-item {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 0.8em;
+            color: #666;
+            word-break: break-all;
+        }
+        .image-preview-item img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .image-preview-item .remove-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: rgba(220, 53, 69, 0.8);
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 0.8em;
+            line-height: 1;
+            padding: 0;
+            border: none;
+            transition: background-color 0.2s;
+        }
+        .image-preview-item .remove-btn:hover {
+            background-color: rgba(220, 53, 69, 1.0);
+        }
+
         .progress {
             height: 25px;
             display: none;
@@ -51,21 +92,26 @@
         .alert {
             border-radius: 10px;
         }
+        #resultLinksGroup .list-group-item {
+            word-break: break-all;
+            white-space: normal;
+        }
     </style>
 </head>
 <body>
     <div class="container py-5">
         <div class="text-center mb-5">
             <h1><i class="fas fa-cloud-upload-alt me-2"></i>GitHub图床上传工具</h1>
-            <p class="text-muted">拖拽图片到下方区域或点击选择文件，免Token全自动</p>
+            <p class="text-muted">拖拽图片到下方区域或点击选择文件</p>
         </div>
 
         <div class="upload-area p-5 text-center mb-4" id="dropZone">
             <i class="fas fa-images fa-4x mb-3 text-muted"></i>
             <p class="fs-5">将图片拖到此处或点击上传</p>
-            <input type="file" id="fileInput" accept="image/jpeg, image/png, image/gif, image/webp" class="d-none">
+            <input type="file" id="fileInput" accept="image/jpeg, image/png, image/gif, image/webp" class="d-none" multiple>
         </div>
-
+        
+        <!-- 全局上传进度条 -->
         <div class="progress mb-3" id="uploadProgress">
             <div class="progress-bar progress-bar-striped progress-bar-animated" 
                  role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
@@ -73,8 +119,10 @@
 
         <div class="card mb-3" id="previewCard" style="display: none;">
             <div class="card-body">
-                <h5 class="card-title text-center mb-3">图片预览</h5>
-                <img id="previewImg" class="img-fluid rounded mb-3">
+                <h5 class="card-title text-center mb-3">图片预览 (<span id="fileCount">0</span> 张)</h5>
+                <div id="previewContainer" class="mb-3">
+                    <!-- 图片预览将在此处动态生成 -->
+                </div>
                 <div class="d-grid gap-2 d-md-flex justify-content-md-center">
                     <button class="btn btn-danger me-md-2" id="cancelBtn">
                         <i class="fas fa-times me-1"></i>取消上传
@@ -92,23 +140,8 @@
             </div>
             <div class="card-body">
                 <p class="text-success mb-2">图片已成功上传并发布！</p>
-                <div class="mb-3">
-                    <label class="form-label">图片链接：</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="imageUrl" readonly>
-                        <button class="btn btn-outline-secondary" onclick="copyUrl()">
-                            <i class="fas fa-copy me-1"></i>复制
-                        </button>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Markdown代码：</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="markdownCode" readonly>
-                        <button class="btn btn-outline-secondary" onclick="copyMarkdown()">
-                            <i class="fas fa-copy me-1"></i>复制
-                        </button>
-                    </div>
+                <div id="resultLinksGroup" class="list-group mb-3">
+                    <!-- 上传成功的链接将在此处动态生成 -->
                 </div>
                 <div class="alert alert-info mt-3">
                     <i class="fas fa-info-circle me-1"></i>
@@ -128,79 +161,119 @@
         // DOM元素
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
-        const previewImg = document.getElementById('previewImg');
+        const previewContainer = document.getElementById('previewContainer'); // 新增
+        const fileCountSpan = document.getElementById('fileCount'); // 新增
         const previewCard = document.getElementById('previewCard');
         const progressBar = document.querySelector('.progress-bar');
         const uploadProgress = document.getElementById('uploadProgress');
         const resultCard = document.getElementById('resultCard');
+        const resultLinksGroup = document.getElementById('resultLinksGroup'); // 新增
         const confirmBtn = document.getElementById('confirmBtn');
         const cancelBtn = document.getElementById('cancelBtn');
         const uploadAnotherBtn = document.getElementById('uploadAnotherBtn');
 
         // 全局变量
-        let currentFile = null;
+        let filesToUpload = []; // 存储待上传的文件对象
         let uploadInProgress = false;
-        let abortController = null; // 用于取消Axios请求
+        let abortController = null;
+
+        const UPLOAD_API_URL = 'https://github-image-uploader-backend.vercel.app/api/upload'; 
+        const PROXY_PREFIX = 'https://gh.catmak.name/'; 
 
         // --- UI 状态管理函数 ---
         function resetUI() {
-            currentFile = null;
-            previewImg.src = '';
-            previewImg.style.display = 'none';
+            filesToUpload = []; // 重置文件列表
+            previewContainer.innerHTML = ''; // 清空预览
+            fileCountSpan.textContent = '0';
             previewCard.style.display = 'none';
             uploadProgress.style.display = 'none';
             resultCard.style.display = 'none';
+            resultLinksGroup.innerHTML = ''; // 清空结果链接
             progressBar.style.width = '0%';
             progressBar.classList.remove('bg-success', 'bg-danger');
             confirmBtn.disabled = true;
-            fileInput.value = ''; // 清空file input，以便再次上传同一文件
-            dropZone.style.display = 'block'; // Ensure dropzone is visible after reset
+            fileInput.value = ''; 
+            dropZone.style.display = 'block'; 
         }
 
-        function showUploadProgress() {
+        function showUploadProgress(currentFileIndex = 0, totalFiles = 1) {
             dropZone.style.display = 'none';
             previewCard.style.display = 'none';
             resultCard.style.display = 'none';
             uploadProgress.style.display = 'block';
-            progressBar.style.width = '0%';
+            // 显示整体上传进度，例如 1/N
+            const percentCompleted = totalFiles > 0 ? Math.round((currentFileIndex / totalFiles) * 100) : 0;
+            progressBar.style.width = `${percentCompleted}%`;
+            progressBar.setAttribute('aria-valuenow', percentCompleted);
             progressBar.classList.remove('bg-success', 'bg-danger');
-            progressBar.classList.add('progress-bar-animated'); // Start animation
+            progressBar.classList.add('progress-bar-animated'); 
             uploadInProgress = true;
             confirmBtn.disabled = true; 
-            cancelBtn.textContent = '取消上传'; // 确保在上传中显示“取消上传”
+            cancelBtn.textContent = '取消上传'; 
         }
 
         function showPreview() {
-            dropZone.style.display = 'block'; // Keep dropzone visible until upload starts
+            dropZone.style.display = 'block'; 
             previewCard.style.display = 'block';
             uploadProgress.style.display = 'none';
             resultCard.style.display = 'none';
-            confirmBtn.disabled = false;
-            uploadInProgress = false; // Not in upload yet, just preview
-            cancelBtn.textContent = '取消选择'; // 预览时显示“取消选择”
+            confirmBtn.disabled = filesToUpload.length === 0; // 如果没有文件就禁用确认按钮
+            uploadInProgress = false; 
+            cancelBtn.textContent = '取消选择'; 
+            fileCountSpan.textContent = filesToUpload.length; // 更新文件数量
         }
 
-        // *** showResult 函数现在接收一个包含 blobUrl 和 cdnUrl 的对象 ***
-        function showResult(data) {
-            const PROXY_PREFIX = 'https://gh.catmak.name/'; 
-            
-            // 从后端数据中解构出两种链接
-            // 安全检查：确保 data.blobUrl 和 data.cdnUrl 存在，如果不存在提供默认空字符串
-            const blobUrl = data.blobUrl || ''; 
-            const cdnUrl = data.cdnUrl || '';    
-
-            // 1. "图片链接" (Image URL) 字段：使用代理化的 Blob URL
-            const proxiedBlobUrl = PROXY_PREFIX + blobUrl; 
-            document.getElementById('imageUrl').value = proxiedBlobUrl; 
-
-            // 2. "Markdown代码" (Markdown Code) 字段：使用代理化的 CDN URL
-            const proxiedCdnUrl = PROXY_PREFIX + cdnUrl;
-            const proxiedMarkdown = `![image](${proxiedCdnUrl})`;
-            document.getElementById('markdownCode').value = proxiedMarkdown;
-
+        // 修改 showResult 接收一个对象数组
+        function showResult(uploadedResults) {
             uploadProgress.style.display = 'none';
             previewCard.style.display = 'none';
             resultCard.style.display = 'block';
+            resultLinksGroup.innerHTML = ''; // 清空之前的结果
+
+            uploadedResults.forEach(result => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item';
+                
+                const originalFileName = result.originalFileName; // 后端未返回，前端需要记录原始文件名
+                const blobUrl = result.blobUrl;
+                const cdnUrl = result.cdnUrl;
+
+                // 1. "图片链接" (Image URL)
+                const proxiedBlobUrl = PROXY_PREFIX + blobUrl;
+                
+                // 2. "Markdown代码" (Markdown Code)
+                const proxiedCdnUrl = PROXY_PREFIX + cdnUrl;
+                const markdownCode = `![image](${proxiedCdnUrl})`;
+
+                li.innerHTML = `
+                    <h6><strong>${originalFileName || filename}</strong></h6>
+                    <small class="text-muted">直接链接 (Blob):</small><br>
+                    <div class="input-group input-group-sm mb-2">
+                        <input type="text" class="form-control" value="${proxiedBlobUrl}" readonly>
+                        <button class="btn btn-outline-secondary copy-btn" data-copy-target="${proxiedBlobUrl}">复制</button>
+                    </div>
+                    <small class="text-muted">Markdown (CDN):</small><br>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control" value="${markdownCode}" readonly>
+                        <button class="btn btn-outline-secondary copy-btn" data-copy-target="${markdownCode}">复制</button>
+                    </div>
+                `;
+                resultLinksGroup.appendChild(li);
+            });
+            
+            // 为所有的复制按钮添加事件监听器
+            resultLinksGroup.querySelectorAll('.copy-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const textToCopy = e.currentTarget.dataset.copyTarget;
+                    navigator.clipboard.writeText(textToCopy).then(() => {
+                        alert('链接已复制到剪贴板！');
+                    }).catch(err => {
+                        console.error('复制失败:', err);
+                        alert('复制失败，请手动复制。');
+                    });
+                });
+            });
+
             progressBar.classList.add('bg-success'); 
             progressBar.style.width = '100%';
             progressBar.classList.remove('progress-bar-animated');
@@ -214,7 +287,7 @@
             progressBar.classList.remove('progress-bar-animated');
             alert(`上传失败: ${message}`);
             uploadInProgress = false;
-            setTimeout(resetUI, 3000);
+            setTimeout(resetUI, 3000); 
         }
 
         // --- 文件处理 ---
@@ -233,141 +306,199 @@
             e.preventDefault();
             dropZone.style.borderColor = '#6c757d';
             dropZone.style.backgroundColor = '';
-            if (e.dataTransfer.files.length) {
-                handleFileSelect(e.dataTransfer.files[0]);
-            }
+
+            handleFiles(e.dataTransfer.files); // 处理多个文件
         });
 
         dropZone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', () => {
-            if (fileInput.files.length) {
-                handleFileSelect(fileInput.files[0]);
-            }
+            handleFiles(fileInput.files); // 处理多个文件
         });
 
-        function handleFileSelect(file) {
-            if (uploadInProgress) return;
-            const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            if (!validTypes.includes(file.type)) {
-                alert('仅支持 JPG/PNG/GIF/WEBP 格式的图片');
-                resetUI();
+        // 统一处理文件选择和拖放
+        function handleFiles(files) {
+            if (uploadInProgress) return; 
+
+            // 将 FilesList 对象转换为数组
+            const newFiles = Array.from(files);
+
+            // 过滤有效文件并添加到 filesToUpload
+            newFiles.forEach(file => {
+                const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                if (!validTypes.includes(file.type)) {
+                    alert(`文件 "${file.name}" 格式不支持，仅支持 JPG/PNG/GIF/WEBP。已跳过。`);
+                    return;
+                }
+                const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB限制
+                if (file.size > MAX_FILE_SIZE) {
+                    alert(`文件 "${file.name}" 大小超过5MB。已跳过。`);
+                    return;
+                }
+                filesToUpload.push(file);
+            });
+            
+            updatePreview(); // 更新预览
+        }
+
+        // 更新预览区域
+        function updatePreview() {
+            previewContainer.innerHTML = ''; // 清空现有预览
+            if (filesToUpload.length === 0) {
+                showPreview(); // 没有文件时重置预览卡片状态
                 return;
             }
-            const MAX_FILE_SIZE = 5 * 1024 * 1024;
-            if (file.size > MAX_FILE_SIZE) {
-                alert(`图片大小不能超过 ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
-                resetUI();
-                return;
-            }
-            currentFile = file;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                previewImg.src = e.target.result;
-                previewImg.style.display = 'block';
-                showPreview();
-            };
-            reader.readAsDataURL(file);
+
+            filesToUpload.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const item = document.createElement('div');
+                    item.className = 'image-preview-item';
+                    item.dataset.index = index; // 存储索引以便删除
+
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.alt = file.name;
+
+                    const fileNameSpan = document.createElement('span');
+                    fileNameSpan.textContent = file.name;
+                    fileNameSpan.style.display = 'block'; // 让文件名在图片下显示
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'remove-btn';
+                    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+                    removeBtn.addEventListener('click', () => removeFile(index));
+
+                    item.appendChild(img);
+                    item.appendChild(fileNameSpan); // 添加文件名显示
+                    item.appendChild(removeBtn);
+                    previewContainer.appendChild(item);
+                };
+                reader.readAsDataURL(file);
+            });
+            showPreview(); // 显示预览卡片
+        }
+
+        // 移除文件
+        function removeFile(indexToRemove) {
+            filesToUpload = filesToUpload.filter((_, index) => index !== indexToRemove);
+            updatePreview(); // 重新渲染预览
         }
 
         // --- 上传逻辑 ---
         async function startUpload() {
-            if (!currentFile || uploadInProgress) return;
+            if (filesToUpload.length === 0 || uploadInProgress) return;
 
-            showUploadProgress(); 
-            
-            abortController = new AbortController();
-            const { signal } = abortController;
+            uploadInProgress = true;
+            confirmBtn.disabled = true;
+            cancelBtn.textContent = '取消上传'; // 在上传中显示取消上传
 
-            const reader = new FileReader();
-            reader.readAsDataURL(currentFile); 
+            const uploadedResults = []; // 存储所有上传成功的结果
 
-            reader.onloadend = async () => {
-                const base64Image = reader.result.split(',')[1]; 
-                const fileType = currentFile.type;
+            for (let i = 0; i < filesToUpload.length; i++) {
+                const file = filesToUpload[i];
+                showUploadProgress(i, filesToUpload.length); // 更新总进度条
 
-                const MAX_RETRIES = 3;
-                let retries = 0;
-                let success = false;
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
 
-                const UPLOAD_API_URL = 'https://github-image-uploader-backend.vercel.app/api/upload'; // <<< 确认这个URL是否正确指向你的Vercel后端 >>>
+                await new Promise((resolve, reject) => {
+                    reader.onloadend = async () => {
+                        const base64Image = reader.result.split(',')[1];
+                        const fileType = file.type;
 
-                while (retries < MAX_RETRIES && !success) {
-                    try {
-                        const response = await axios.post(
-                            UPLOAD_API_URL, 
-                            {
-                                image: base64Image,
-                                type: fileType
-                            },
-                            {
-                                signal: signal,
-                                onUploadProgress: (progressEvent) => {
-                                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                                    progressBar.style.width = `${percentCompleted}%`;
-                                    progressBar.setAttribute('aria-valuenow', percentCompleted);
+                        const MAX_RETRIES = 3;
+                        let retries = 0;
+                        let success = false;
+
+                        while (retries < MAX_RETRIES && !success) {
+                            try {
+                                const response = await axios.post(
+                                    UPLOAD_API_URL, 
+                                    {
+                                        image: base64Image,
+                                        type: fileType
+                                    },
+                                    {
+                                        signal: abortController.signal // 传递 AbortSignal
+                                        // onUploadProgress: (progressEvent) => { 
+                                        //     // 单文件上传进度不显示，只显示总体进度
+                                        // }
+                                    }
+                                );
+                                uploadedResults.push({ 
+                                    ...response.data, 
+                                    originalFileName: file.name // 把原始文件名也带上
+                                });
+                                success = true;
+                                resolve(); // 解决当前Promise，继续下一个文件
+                                
+                            } catch (error) {
+                                if (axios.isCancel(error)) {
+                                    console.log('Upload cancelled by user.');
+                                    showError('上传已取消。');
+                                    reject(new Error('Upload cancelled')); // 拒绝Promise并退出循环
+                                    return; // 退出当前文件循环
+                                }
+
+                                retries++;
+                                console.error(`文件 "${file.name}" 上传失败 (尝试 ${retries}/${MAX_RETRIES}):`, error.response ? error.response.data : error.message);
+                                if (retries < MAX_RETRIES) {
+                                    const delay = Math.pow(2, retries) * 1000 + Math.random() * 500;
+                                    // 可以在这里更新一个针对当前文件的错误状态，但为了简化，现在只更新全局进度条
+                                    progressBar.classList.add('bg-danger'); 
+                                    progressBar.classList.remove('progress-bar-animated');
+                                    await new Promise(res => setTimeout(res, delay));
+                                    progressBar.classList.remove('bg-danger'); 
+                                    progressBar.classList.add('progress-bar-animated');
+                                } else {
+                                    showError(`文件 "${file.name}" 上传失败: ${error.response?.data?.error || error.message || '未知错误'}`);
+                                    reject(error); // 拒绝Promise并退出循环
+                                    return;
                                 }
                             }
-                        );
-
-                        // *** 关键修改：将整个 response.data 对象传递给 showResult ***
-                        showResult(response.data); 
-                        success = true;
-                        
-                    } catch (error) {
-                        if (axios.isCancel(error)) {
-                            console.log('Upload cancelled by user.');
-                            showError('上传已取消。');
-                            break; 
                         }
+                    };
+                    reader.onerror = () => {
+                        showError(`读取文件 "${file.name}" 失败。`);
+                        reject(new Error('File read error'));
+                    };
+                }).catch(err => {
+                    // 如果有文件上传失败或被取消，跳出整个批量上传循环
+                    console.error("Batch upload interrupted.", err);
+                    uploadInProgress = false; // 确保状态重置
+                    confirmBtn.disabled = false;
+                    cancelBtn.textContent = '取消选择';
+                    showPreview(); // 回到预览状态或错误状态，如果需要
+                    return; // 退出 for 循环
+                });
 
-                        retries++;
-                        console.error(`上传失败 (尝试 ${retries}/${MAX_RETRIES}):`, error.response ? error.response.data : error.message);
-                        if (retries < MAX_RETRIES) {
-                            const delay = Math.pow(2, retries) * 1000 + Math.random() * 500;
-                            progressBar.classList.add('bg-danger');
-                            progressBar.classList.remove('progress-bar-animated');
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                            progressBar.classList.remove('bg-danger'); 
-                            progressBar.classList.add('progress-bar-animated');
-                            progressBar.style.width = '0%';
-                        } else {
-                            showError(error.response?.data?.error || error.message || '未知错误');
-                        }
-                    }
+                if (!uploadInProgress) { // 如果在 await new Promise 中被中断（如取消上传），则跳出循环
+                    break;
                 }
-                uploadInProgress = false;
-            };
+            }
 
-            reader.onerror = () => {
-                showError('读取文件失败。');
-                uploadInProgress = false;
-            };
+            // 所有文件处理完毕
+            if (uploadInProgress) { // Await completed, and not cancelled
+                showProgress(filesToUpload.length, filesToUpload.length); // 确保进度条100%
+                showResult(uploadedResults); // 显示所有成功的结果
+            }
         }
 
         // --- 辅助函数 ---
-        function copyUrl() {
-            const copyText = document.getElementById('imageUrl');
-            copyText.select();
-            copyText.setSelectionRange(0, 99999);
-            document.execCommand('copy');
-            alert('链接已复制到剪贴板');
-        }
-
-        function copyMarkdown() {
-            const copyText = document.getElementById('markdownCode');
-            copyText.select();
-            copyText.setSelectionRange(0, 99999);
-            document.execCommand('copy');
-            alert('Markdown代码已复制');
-        }
+        // copyUrl 和 copyMarkdown 函数现在不再直接与 input 绑定，而是通过事件委托实现
+        // 外部调用的 copyUrl/copyMarkdown 不再需要
+        // 现已修改 showResult 中直接复制 textContent 的方式
 
         // --- 按钮事件 ---
         confirmBtn.addEventListener('click', startUpload);
-        cancelBtn.addEventListener('click', () => {
+        document.getElementById('cancelBtn').addEventListener('click', () => {
             if (uploadInProgress && abortController) {
-                abortController.abort();
+                abortController.abort(); // 取消所有进行中的 Axios 请求
+                uploadInProgress = false; // 手动重置状态
+                showError('上传操作已取消。'); // 显示取消信息
+                resetUI(); // 重置UI
             } else {
-                resetUI();
+                resetUI(); // 如果是预览状态，只是重置
             }
         });
         uploadAnotherBtn.addEventListener('click', resetUI);
