@@ -140,13 +140,6 @@
                     <button class="btn btn-success" id="confirmBtn" disabled>
                         <i class="fas fa-check me-1"></i>确认上传
                     </button>
-                    <!-- 移除 outputFormatSelect 下拉选择器 -->
-                    <!-- <select class="form-select form-select-sm ms-md-2" id="outputFormatSelect" style="width: auto;">
-                        <option value="auto" selected>自动格式</option>
-                        <option value="jpeg">JPEG</option>
-                        <option value="png">PNG</option>
-                        <option value="webp">WEBP (推荐)</option>
-                    </select> -->
                 </div>
             </div>
         </div>
@@ -188,13 +181,13 @@
         const confirmBtn = document.getElementById('confirmBtn');
         const cancelBtn = document.getElementById('cancelBtn');
         const uploadAnotherBtn = document.getElementById('uploadAnotherBtn');
-        // const outputFormatSelect = document.getElementById('outputFormatSelect'); // 移除此 DOM 元素引用
 
         // 全局变量
         let filesToUpload = []; 
         let uploadInProgress = false;
         let mainAbortController = null; 
 
+        // 后端文件是 api/v1.mjs，所以URL是 /api/v1
         const UPLOAD_API_URL = 'https://github-image-uploader-backend.vercel.app/api/v1'; 
 
         // --- UI 状态管理函数 ---
@@ -397,11 +390,6 @@
 
                 const formData = new FormData();
                 formData.append('image', file); 
-                // 移除 outputFormat 参数的发送
-                // const outputFormat = outputFormatSelect.value;
-                // if (outputFormat && outputFormat !== 'auto') {
-                //     formData.append('outputFormat', outputFormat);
-                // }
 
                 const MAX_RETRIES = 3;
                 let retries = 0;
@@ -533,5 +521,36 @@
 
         resetUI();
     </script>
+
+    <!-- Dify Chatbot 嵌入代码 START -->
+    <script>
+     window.difyChatbotConfig = {
+      token: 'HnOpaKVVMZJySzdG',
+      baseUrl: 'https://udify.app', // 将 baseUrl 从 10.10.10.135 更改为 udify.app
+      systemVariables: {
+        // user_id: 'YOU CAN DEFINE USER ID HERE',
+        // conversation_id: 'YOU CAN DEFINE CONVERSATION ID HERE, IT MUST BE A VALID UUID',
+      },
+      userVariables: {
+        // avatar_url: 'YOU CAN DEFINE USER AVATAR URL HERE',
+        // name: 'YOU CAN DEFINE USER NAME HERE',
+      },
+     }
+    </script>
+    <script
+     src="https://udify.app/embed.min.js" // 将 src 从 10.10.10.135/embed.min.js 更改为 udify.app/embed.min.js
+     id="HnOpaKVVMZJySzdG"
+     defer>
+    </script>
+    <style>
+      #dify-chatbot-bubble-button {
+        background-color: #1C64F2 !important;
+      }
+      #dify-chatbot-bubble-window {
+        width: 24rem !important;
+        height: 40rem !important;
+      }
+    </style>
+    <!-- Dify Chatbot 嵌入代码 END -->
 </body>
 </html>
