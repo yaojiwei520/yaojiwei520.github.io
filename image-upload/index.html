@@ -140,12 +140,13 @@
                     <button class="btn btn-success" id="confirmBtn" disabled>
                         <i class="fas fa-check me-1"></i>确认上传
                     </button>
-                    <select class="form-select form-select-sm ms-md-2" id="outputFormatSelect" style="width: auto;">
+                    <!-- 移除 outputFormatSelect 下拉选择器 -->
+                    <!-- <select class="form-select form-select-sm ms-md-2" id="outputFormatSelect" style="width: auto;">
                         <option value="auto" selected>自动格式</option>
                         <option value="jpeg">JPEG</option>
                         <option value="png">PNG</option>
                         <option value="webp">WEBP (推荐)</option>
-                    </select>
+                    </select> -->
                 </div>
             </div>
         </div>
@@ -187,14 +188,13 @@
         const confirmBtn = document.getElementById('confirmBtn');
         const cancelBtn = document.getElementById('cancelBtn');
         const uploadAnotherBtn = document.getElementById('uploadAnotherBtn');
-        const outputFormatSelect = document.getElementById('outputFormatSelect'); 
+        // const outputFormatSelect = document.getElementById('outputFormatSelect'); // 移除此 DOM 元素引用
 
         // 全局变量
         let filesToUpload = []; 
         let uploadInProgress = false;
         let mainAbortController = null; 
 
-        // 后端文件现在是 api/v1.mjs，所以URL是 /api/v1
         const UPLOAD_API_URL = 'https://github-image-uploader-backend.vercel.app/api/v1'; 
 
         // --- UI 状态管理函数 ---
@@ -251,13 +251,9 @@
                 li.className = 'list-group-item';
                 
                 const originalFileName = result.originalFileName; 
-                // 后端现在直接返回代理后的 URL
-                const cdnUrlProxied = result.url; // API规范中的 'url' 字段 (已包含代理)
-                // const deleteUrl = result.delete_url; // <-- 移除 deleteUrl 变量
-                const blobUrlProxied = result.blobUrlForInternalUse; // 我们自定义返回的 Blob 链接 (已包含代理)
+                const cdnUrlProxied = result.url; 
+                const blobUrlProxied = result.blobUrlForInternalUse; 
 
-                // 1. "图片链接" (Image URL) 字段：直接使用后端返回的代理后的 Blob URL
-                // 2. "Markdown代码" (Markdown Code) 字段：直接使用后端返回的代理后的 CDN URL
                 const markdownCode = `![image](${cdnUrlProxied})`; 
 
                 li.innerHTML = `
@@ -272,8 +268,6 @@
                         <input type="text" class="form-control" value="${markdownCode}" readonly>
                         <button class="btn btn-outline-secondary copy-btn" data-copy-target="${markdownCode}">复制</button>
                     </div>
-                    <!-- ${/* deleteUrl ? `<small class="text-muted">删除链接 (未实现):</small><br><div class="input-group input-group-sm"><input type="text" class="form-control" value="${deleteUrl}" readonly><button class="btn btn-outline-secondary copy-btn" data-copy-target="${deleteUrl}">复制</button></div>` : '' */''} -->
-                    <!-- 👆 移除或注释掉显示删除链接的代码行 -->
                 `;
                 resultLinksGroup.appendChild(li);
             });
@@ -403,10 +397,11 @@
 
                 const formData = new FormData();
                 formData.append('image', file); 
-                const outputFormat = outputFormatSelect.value;
-                if (outputFormat && outputFormat !== 'auto') {
-                    formData.append('outputFormat', outputFormat);
-                }
+                // 移除 outputFormat 参数的发送
+                // const outputFormat = outputFormatSelect.value;
+                // if (outputFormat && outputFormat !== 'auto') {
+                //     formData.append('outputFormat', outputFormat);
+                // }
 
                 const MAX_RETRIES = 3;
                 let retries = 0;
