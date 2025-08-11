@@ -243,11 +243,11 @@
                 const li = document.createElement('li');
                 li.className = 'list-group-item';
                 
-                const originalFileName = result.originalFileName; //从 result 拿文件名
-                const cdnUrlProxied = result.url; // result里已经代理过了
-                const blobUrlProxied = result.blobUrlForInternalUse; // result里已经代理过了
+                const originalFileName = result.originalFileName; 
+                const cdnUrlProxied = result.url; 
+                const blobUrlProxied = result.blobUrlForInternalUse; 
 
-                const markdownCode = `![image](${cdnUrlProxied})`; //不需要再次代理
+                const markdownCode = `![image](${cdnUrlProxied})`; 
 
                 li.innerHTML = `
                     <h6><strong>${originalFileName}</strong></h6>
