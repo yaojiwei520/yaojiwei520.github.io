@@ -1,7 +1,9 @@
-name: Rename Images with AI
+name: Rename Images
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'images/**'
 
@@ -15,45 +17,34 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python
+      - name: Set up Python 3.9
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: 3.9
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install google-cloud-vision pillow gitpython
 
+      - name: Verify JSON format
+        run: |
+          echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}" | jq .
+
       - name: Authenticate with Google Cloud
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
 
-      - name: Rename images
-        run: python .github/workflows/rename_images.py  # 确保路径正确
+      - name: Run image renaming script
+        run: python image_renamer.py
+        env:
+          IMAGE_FOLDER: images/  # Optional：如果你的图像不是都在 'image/' 目录下
 
       - name: Commit and push changes
         run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-
-          # Add all changes under images/
-          git add images/*
-
-          # Attempt to commit, but if there are no changes, simply output a message
-          if ! git commit -m "Rename images based on AI recognition"; then
-            echo "No changes to commit"
-          else
-            # Get the branch name from the GITHUB_REF environment variable.
-            BRANCH_NAME=${GITHUB_REF#refs/heads/}
-
-            # Ensure the branch name isn't empty
-            if [ -z "$BRANCH_NAME" ]; then
-              echo "Error: Could not determine branch name from GITHUB_REF.  Falling back to 'main'."
-              BRANCH_NAME="main"
-            fi
-
-            # Push the changes to the origin repository on the correct branch.
-            git push origin HEAD:"$BRANCH_NAME"
-          fi
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add .
+          git commit -m "Rename images based on Vision API" || echo "No changes to commit"
+          git push
