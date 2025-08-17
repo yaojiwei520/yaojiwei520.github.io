@@ -8,6 +8,8 @@ on:
 jobs:
   review:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
 
     steps:
       - name: 检出代码
@@ -26,17 +28,27 @@ jobs:
           pip install google-generativeai
 
       - name: Gemini 获取差异并分析
-        id: gemini  # 给步骤指定一个 ID
-        run: python gemini_code_review.py
+        id: gemini
+        run: |
+          python gemini_code_review.py
+          echo "GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}"  # 打印API Key
+          echo "Generated Issue Body:"
+          echo "${{ steps.gemini.outputs.issue_body }}"  # 打印输出
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: 检查 issue_body 是否为空
+        run: |
+          echo "issue_body is empty: ${{ steps.gemini.outputs.issue_body == '' }}"
 
       - name: 创建问题（如果需要）
         if: ${{ steps.gemini.outputs.issue_body != '' }}
         uses: actions/github-script@v6
         with:
           script: |
+            console.log("Creating issue...");
             const issueBody = `${{ steps.gemini.outputs.issue_body }}`;
+            console.log("issueBody:", issueBody); // 打印 issueBody 在 JavaScript 中的值
             if (issueBody) {
               github.rest.issues.create({
                 owner: context.repo.owner,
@@ -44,4 +56,7 @@ jobs:
                 title: 'Gemini Code Review Findings',
                 body: issueBody,
               });
+              console.log("Issue created successfully!");
+            } else {
+              console.log("Issue body is empty, not creating issue.");
             }
