@@ -1,0 +1,47 @@
+name: Gemini Code Review
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Python 3.9+
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 安装依赖项
+        run: |
+          python -m pip install --upgrade pip
+          pip install google-generativeai
+
+      - name: Gemini 获取差异并分析
+        id: gemini  # 给步骤指定一个 ID
+        run: python gemini_code_review.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: 创建问题（如果需要）
+        if: ${{ steps.gemini.outputs.issue_body != '' }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issueBody = `${{ steps.gemini.outputs.issue_body }}`;
+            if (issueBody) {
+              github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Gemini Code Review Findings',
+                body: issueBody,
+              });
+            }
